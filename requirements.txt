@@ -1,8 +1,8 @@
 streamlit
-tensorflow
+tensorflow-cpu
 Pillow
 pandas
 numpy
-opencv-python
+opencv-python-headless
 tqdm
 matplotlib
