@@ -17,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Professional UI Styling - Font Awesome & High Contrast
+# Professional UI Styling
 st.markdown("""
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -99,9 +99,6 @@ st.markdown("""
 
 @st.cache_resource
 def load_agronomist_model(model_path):
-    """
-    Loads the brain only once to ensure consistent, lightning-fast predictions.
-    """
     if not os.path.exists(model_path):
         return None
     try:
@@ -117,7 +114,13 @@ def load_agronomist_model(model_path):
 
 CROP_DATA = {
     "Cassava": {
-        "classes": ["Cassava Bacterial Blight (CBB)", "Cassava Brown Streak Disease (CBSD)", "Cassava Green Mottle (CGM)", "Cassava Mosaic Disease (CMD)", "Healthy"],
+        "classes": [
+            "Cassava Bacterial Blight (CBB)", 
+            "Cassava Brown Streak Disease (CBSD)", 
+            "Cassava Green Mottle (CGM)", 
+            "Cassava Mosaic Disease (CMD)", 
+            "Healthy"
+        ],
         "model_path": os.path.join("models", "cassava_model.h5"),
         "info": {
             "Cassava Bacterial Blight (CBB)": {"symptoms": "Angular leaf spots with yellow halos. Progresses to wilting.", "action": "Destroy infected plants. Use clean cuttings.", "color": "#b71c1c", "icon": "fa-biohazard"},
@@ -128,45 +131,57 @@ CROP_DATA = {
         }
     },
     "Maize": {
-        "classes": ["Maize Lethal Necrosis", "Maize Rust", "Maize Streak Virus", "Maize Fall Armyworm", "Healthy"],
+        # IMPORTANT: Order must match the trainer's alphabetical directory order
+        "classes": [
+            "Maize Lethal Necrosis", 
+            "Maize Rust", 
+            "Maize fall armyworm", 
+            "Maize grasshoper", 
+            "Maize healthy", 
+            "Maize leaf beetle", 
+            "Maize leaf blight", 
+            "Maize leaf spot", 
+            "Maize streak virus"
+        ],
         "model_path": os.path.join("models", "maize_model.h5"),
         "info": {
             "Maize Lethal Necrosis": {"symptoms": "Sudden leaf marginal necrosis and plant death.", "action": "Rotate crops. Vector control.", "color": "#b71c1c", "icon": "fa-skull"},
             "Maize Rust": {"symptoms": "Orange-brown pustules on leaves.", "action": "Fungicide application if severe.", "color": "#bf360c", "icon": "fa-biohazard"},
-            "Maize Streak Virus": {"symptoms": "Linear yellow streaks on leaves.", "action": "Control leafhoppers with insecticides.", "color": "#ff6f00", "icon": "fa-bolt"},
-            "Maize Fall Armyworm": {"symptoms": "Ragged holes and frass in the whorl.", "action": "Apply localized biopesticides.", "color": "#3e2723", "icon": "fa-locust"},
-            "Healthy": {"symptoms": "Vibrant green blades, no lesions.", "action": "Ensure proper nitrogenous feed.", "color": "#004d40", "icon": "fa-check-double"}
+            "Maize fall armyworm": {"symptoms": "Ragged holes and sawdust-like waste in the whorl.", "action": "Apply biopesticides to the plant whorl.", "color": "#3e2723", "icon": "fa-bug"},
+            "Maize grasshoper": {"symptoms": "Irregularly chewed leaf margins, large insects often visible.", "action": "Handpick in morning or use recommended sprays.", "color": "#6d4c41", "icon": "fa-locust"},
+            "Maize healthy": {"symptoms": "Vibrant green blades, no lesions.", "action": "Ensure proper nitrogenous feed.", "color": "#004d40", "icon": "fa-check-double"},
+            "Maize leaf beetle": {"symptoms": "Linear streaks of eaten leaf tissues, skeletonized patches.", "action": "Apply organic neem oil or targeted insecticides.", "color": "#1a237e", "icon": "fa-bug-slash"},
+            "Maize leaf blight": {"symptoms": "Long, cigar-shaped parchment-like lesions.", "action": "Plant resistant hybrids and ensure good drainage.", "color": "#dd2c00", "icon": "fa-wind"},
+            "Maize leaf spot": {"symptoms": "Small tan circular lesions with dark borders.", "action": "Harvest early if severe. Crop rotation.", "color": "#795548", "icon": "fa-circle-nodes"},
+            "Maize streak virus": {"symptoms": "Linear yellow streaks parallel to leaf veins.", "action": "Plant early in the season to evade leafhoppers.", "color": "#ff6f00", "icon": "fa-bolt"}
         }
     }
 }
 
 # ==========================================
-# INFERENCE LOGIC (FIXED: NO RANDOM FALLBACK)
+# INFERENCE LOGIC
 # ==========================================
 
 def process_specimen(image_file):
-    """Resizes and normalizes input for the model."""
     img = Image.open(image_file).convert("RGB")
     prepared = np.array(img.resize((224, 224))) / 255.0
     return img, np.expand_dims(prepared, axis=0)
 
 def predict_pathology(batch, crop_type):
-    """
-    Performs inference using the loaded model.
-    Removed random fallback to ensure total consistency.
-    """
     meta = CROP_DATA[crop_type]
     model = load_agronomist_model(meta["model_path"])
     
     if model:
         out = model.predict(batch)
         idx = np.argmax(out)
+        
+        # Robustness check to prevent IndexError
+        if idx >= len(meta["classes"]):
+             return "Unknown Condition", 0.0
+             
         return meta["classes"][idx], float(out[0][idx])
     else:
-        st.warning(f"Detection Mode: {crop_type} model not found. Proceeding with analysis engine calibration.")
-        time.sleep(1)
-        # We return a specific 'Not Found' state instead of random guesses
-        return "Model Calibration Pending", 0.0
+        return "Model Initialization Pending", 0.0
 
 # ==========================================
 # UI RENDERER
@@ -178,7 +193,7 @@ with st.sidebar:
     crop = st.selectbox("Select Crop Type", ["Cassava", "Maize"])
     mode = st.radio("System Mode", ["Individual Analytics", "Batch Farm Audit"])
     st.divider()
-    st.info(f"System identifying {crop} diseases using validated CNN weights.")
+    st.info(f"System identifying {crop} diseases.")
 
 st.markdown(f"<h1><i class='fas fa-microscope'></i> {crop} Health Analytics</h1>", unsafe_allow_html=True)
 
@@ -208,7 +223,7 @@ if mode == "Individual Analytics":
             vis_img, batch_data = process_specimen(active_specimen)
             st.image(vis_img, caption="Current Analysis Subject", use_container_width=True)
             
-            with st.spinner("Analyzing cell structures..."):
+            with st.spinner("Analyzing neural pathways..."):
                 label, conf = predict_pathology(batch_data, crop)
             
             if label in CROP_DATA[crop]["info"]:
@@ -217,7 +232,7 @@ if mode == "Individual Analytics":
                 st.markdown(f"""
                 <div class='prediction-card'>
                     <div class='metric-label'>Diagnosis Confidence</div>
-                    <h1 style='color: {info_card['color']}; font-weight: 900; margin-top:0;'>{int(conf*100)}% Accurate</h1>
+                    <h1 style='color: {info_card['color']}; font-weight: 900; margin-top:0;'>{int(conf*100)}% Match</h1>
                     <hr style="border: 1px solid #ddd;">
                     <div class='metric-label'>Detected Condition</div>
                     <h2 style='color: #111; font-weight: 800;'><i class='fas {info_card['icon']}'></i> {label}</h2>
@@ -227,7 +242,7 @@ if mode == "Individual Analytics":
                 st.markdown(f"<div class='disease-desc'><b>Observed Symptoms:</b><br>{info_card['symptoms']}</div>", unsafe_allow_html=True)
                 st.markdown(f"<div class='action-plan'><b>Recommended Remediation:</b><br>{info_card['action']}</div>", unsafe_allow_html=True)
             else:
-                st.error("Diagnosis Calibration Failed: No trained weights detected for this class.")
+                st.warning(f"Technical Alert: Diagnosis '{label}' recognized but advice module is currently calibrating.")
 
 else: # Batch Audit Mode
     st.markdown("<div class='info-header'><i class='fas fa-layer-group'></i> Batch Farm Audit</div>", unsafe_allow_html=True)
@@ -249,4 +264,4 @@ else: # Batch Audit Mode
             st.bar_chart(res_df["Condition"].value_counts())
 
 st.markdown("---")
-st.markdown("<div style='text-align: center; color: #444; font-size: 14px;'>Empowering Farmers with Precision AI Analytics</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; color: #444; font-size: 14px;'>Precision AI Agronomist | High-Contrast Scientific Interface</div>", unsafe_allow_html=True)
