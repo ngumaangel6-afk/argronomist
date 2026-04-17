@@ -1,0 +1,22 @@
+# Environment
+__pycache__/
+.env
+venv/
+env/
+.ipynb_checkpoints/
+
+# Datasets (Large files)
+train_images/
+Multicrop-Disease-Maiz Disease-Pests and disease/
+test_images/
+test_tfrecords/
+train_tfrecords/
+sample_submission.csv
+train.csv
+
+# Models (Optional: GitHub has a 100MB limit per file. Our models are ~11MB, so we can keep them)
+# models/*.h5
+
+# OS Files
+.DS_Store
+Thumbs.db
